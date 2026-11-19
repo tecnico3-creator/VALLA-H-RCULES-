@@ -1,0 +1,1 @@
+VALLA HÉRCULES — paquete PWA. Publica el contenido de esta carpeta en un alojamiento HTTPS. Después abre la dirección en Chrome Android > menú ⋮ > Instalar aplicación. Los datos se guardan localmente en el dispositivo.

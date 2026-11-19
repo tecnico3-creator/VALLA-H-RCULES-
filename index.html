@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#145b78"><meta name="application-name" content="Valla Hércules"><link rel="manifest" href="manifest.webmanifest">
+<title>Valla Hércules</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#202938;background:#f4f6f8}
+*{box-sizing:border-box}body{margin:0;padding:20px}.app{max-width:1100px;margin:auto}
+header{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:26px;margin:0}h2{font-size:18px;margin:0 0 12px}.muted{color:#657184;font-size:13px}
+button{border:0;border-radius:9px;padding:10px 13px;background:#145b78;color:white;font-weight:650;cursor:pointer}
+button.secondary{background:#e5edf1;color:#17475b}button.danger{background:#fbe8e7;color:#9b2c25}
+.card{background:white;border:1px solid #e0e6eb;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 2px 8px #172b3a0a}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}.project-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+input,select{width:100%;padding:9px;border:1px solid #ccd5dd;border-radius:8px;font:inherit;background:#fff}
+label{font-size:12px;color:#536273;display:block;margin:0 0 5px}.grid{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:10px;margin-top:12px}
+.grid .wide{grid-column:span 2}.totals{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#f0f5f7;border-radius:10px;padding:12px}.stat b{display:block;font-size:23px;color:#145b78}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px}th,td{text-align:right;padding:9px 7px;border-bottom:1px solid #e8edf0}th:first-child,td:first-child{text-align:left}
+th{color:#536273;font-weight:650;background:#f7f9fa}.positive{color:#a33a2d;font-weight:700}.ok{color:#24724c}
+.note{background:#fff8e5;border:1px solid #f0dfae;padding:12px;border-radius:10px;font-size:13px;line-height:1.45}
+.material{border-top:1px solid #e7ecef;padding-top:14px;margin-top:14px}.material:first-child{border:0;padding-top:0}
+.calcbox{background:#f5f8fa;border:1px solid #e0e8ed;border-radius:10px;padding:12px;margin-top:12px}.calcbox h3{font-size:14px;margin:0 0 4px}.formula{font-size:12px;color:#536273;line-height:1.5;margin-top:8px}
+.actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.small{font-size:12px}
+@media(max-width:700px){body{padding:12px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid .wide{grid-column:span 2}.totals{grid-template-columns:1fr}table{font-size:11px}th,td{padding:7px 4px}}
+@media print{body{background:white;padding:0}.no-print,button{display:none!important}.card{box-shadow:none;break-inside:avoid}}
+</style>
+</head>
+<body><main class="app">
+<header><div><h1>Calculadora de materiales</h1><div class="muted">Vallas y cerramientos · proyectos reutilizables</div></div>
+<div class="toolbar no-print"><button onclick="addProject()">+ Nueva obra</button><button class="secondary" onclick="exportCSV()">Exportar CSV</button><button class="secondary" onclick="window.print()">Imprimir resumen</button></div></header>
+<div class="note"><b>Importante:</b> La fotografía contiene anotaciones manuscritas y algunos campos no se leen con seguridad. Para evitar dar por buenos datos dudosos, la aplicación incluye cantidades necesarias legibles de la tabla como punto de partida; revisa especialmente los valores manuscritos. Las cantidades suministradas empiezan en cero porque no todos esos datos se distinguen con seguridad: complétalas para obtener el pendiente real. Puedes añadir obras y tipos de malla para futuros proyectos. Los datos se guardan en este navegador.</div>
+<section id="projects"></section>
+<section class="card"><h2>Resumen general · todas las obras</h2><div id="grand"></div></section>
+<div class="muted small">Cálculo: pendiente = cantidad necesaria − cantidad suministrada (nunca baja de cero). Las abrazaderas se introducen como unidades totales; no se presupone una proporción por panel.</div>
+</main>
+<script>
+const starter=[
+ {id:1,name:"Troya – depósito Metro Laguna · pedido 13072",lines:[
+  {id:11,name:"Malla Hércules 1,10 m · RAL 1021",meters:0,panelWidth:0,clampsPerPanel:0,extraPosts:1,panels:161,panelsSup:0,posts:149,postsSup:0,clamps:452,clampsSup:0},
+  {id:12,name:"Malla Hércules interior 2,10 m · RAL 9006",meters:0,panelWidth:0,clampsPerPanel:0,extraPosts:1,panels:210,panelsSup:0,posts:200,postsSup:0,clamps:850,clampsSup:0}]},
+ {id:2,name:"Troya – depósito Metro Ciudad Universitaria · pedido 13072",lines:[
+  {id:21,name:"Malla Hércules 1,10 m · RAL 1021",panels:70,panelsSup:0,posts:95,postsSup:0,clamps:222,clampsSup:0},
+  {id:22,name:"Malla Hércules 2,10 m · RAL 9006",panels:75,panelsSup:0,posts:77,postsSup:0,clamps:308,clampsSup:0}]}
+];
+let projects;
+try{projects=JSON.parse(localStorage.getItem('calcVallasProjects'))||starter}catch(e){projects=starter}
+const n=v=>Math.max(0,Number(v)||0), pending=(a,b)=>Math.max(0,n(a)-n(b));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function save(){localStorage.setItem('calcVallasProjects',JSON.stringify(projects));render()}
+function addProject(){projects.push({id:Date.now(),name:"Nueva obra",lines:[]});save()}
+function addLine(pid){let p=projects.find(x=>x.id===pid);p.lines.push({id:Date.now(),name:"Nuevo material / acabado",panels:0,panelsSup:0,posts:0,postsSup:0,clamps:0,clampsSup:0});save()}
+function removeProject(pid){if(confirm("¿Eliminar esta obra y sus líneas?")){projects=projects.filter(p=>p.id!==pid);save()}}
+function removeLine(pid,lid){let p=projects.find(x=>x.id===pid);p.lines=p.lines.filter(l=>l.id!==lid);save()}
+function upd(pid,lid,key,val){let p=projects.find(x=>x.id===pid),l=p.lines.find(x=>x.id===lid);l[key]=key==='name'?val:n(val);localStorage.setItem('calcVallasProjects',JSON.stringify(projects));refreshTotals()}
+function rename(pid,val){projects.find(p=>p.id===pid).name=val;localStorage.setItem('calcVallasProjects',JSON.stringify(projects))}
+function totals(lines){return lines.reduce((a,l)=>{let d=derived(l);a.panels+=pending(d.panels,l.panelsSup);a.posts+=pending(d.posts,l.postsSup);a.clamps+=pending(d.clamps,l.clampsSup);a.panelsNeed+=d.panels;a.postsNeed+=d.posts;a.clampsNeed+=d.clamps;return a},{panels:0,posts:0,clamps:0,panelsNeed:0,postsNeed:0,clampsNeed:0})}
+function derived(l){
+ const hasLength=n(l.meters)>0 && n(l.panelWidth)>0;
+ const panels=hasLength?Math.ceil(n(l.meters)/n(l.panelWidth)):n(l.panels);
+ const posts=hasLength?panels+n(l.extraPosts):n(l.posts);
+ const clamps=hasLength?panels*n(l.clampsPerPanel):n(l.clamps);
+ return {hasLength,panels,posts,clamps};
+}
+function material(l,p){
+ const d=derived(l);
+ const needPanels=d.panels, needPosts=d.posts, needClamps=d.clamps;
+ return `<div class="material"><div class="grid">
+ <div class="wide"><label>Material / tipo / acabado</label><input value="${esc(l.name)}" onchange="upd(${p.id},${l.id},'name',this.value)"></div>
+ <div><label>Longitud del tramo (m)</label><input type="number" min="0" step="0.01" value="${n(l.meters)}" onchange="upd(${p.id},${l.id},'meters',this.value)"></div>
+ <div><label>Ancho de panel (m)</label><input type="number" min="0" step="0.01" value="${n(l.panelWidth)}" onchange="upd(${p.id},${l.id},'panelWidth',this.value)"></div>
+ <div><label>Abrazaderas por panel</label><input type="number" min="0" step="1" value="${n(l.clampsPerPanel)}" onchange="upd(${p.id},${l.id},'clampsPerPanel',this.value)"></div>
+ <div><label>Postes adicionales por tramo</label><input type="number" min="0" step="1" value="${n(l.extraPosts)}" onchange="upd(${p.id},${l.id},'extraPosts',this.value)"></div>
+ </div>
+ <div class="calcbox"><h3>${d.hasLength?'Cálculo automático por longitud':'Modo manual de cantidades'}</h3>
+ <div class="formula">${d.hasLength?`Paneles = redondeo hacia arriba (${n(l.meters)} m ÷ ${n(l.panelWidth)} m) = <b>${needPanels}</b>. Postes = paneles + ${n(l.extraPosts)} adicional(es) = <b>${needPosts}</b>. Abrazaderas = paneles × ${n(l.clampsPerPanel)} por panel = <b>${needClamps}</b>.`:'Introduce longitud y ancho de panel para activar el cálculo automático. Si los dejas a cero, puedes introducir las cantidades necesarias manualmente.'}</div>
+ </div>
+ <div class="grid">
+ ${field("Paneles necesarios","panels",l,p,needPanels,d.hasLength)}
+ ${field("Paneles suministrados","panelsSup",l,p)}
+ ${field("Postes necesarios","posts",l,p,needPosts,d.hasLength)}
+ ${field("Postes suministrados","postsSup",l,p)}
+ ${field("Abrazaderas necesarias","clamps",l,p,needClamps,d.hasLength)}
+ ${field("Abrazaderas suministradas","clampsSup",l,p)}
+ </div>
+ <div class="muted small" style="margin-top:8px">Pendiente: <b class="positive">${pending(needPanels,l.panelsSup)} paneles</b> · <b class="positive">${pending(needPosts,l.postsSup)} postes</b> · <b class="positive">${pending(needClamps,l.clampsSup)} abrazaderas</b>
+ <button class="danger no-print" style="float:right;padding:5px 8px" onclick="removeLine(${p.id},${l.id})">Eliminar línea</button></div></div>`
+}
+function field(label,key,l,p,computed=null,locked=false){let value=computed===null?n(l[key]):computed;return `<div><label>${label}</label><input type="number" min="0" step="1" value="${value}" ${locked?'disabled title="Cantidad calculada automáticamente"':''} onchange="upd(${p.id},${l.id},'${key}',this.value)"></div>`}
+function render(){document.getElementById('projects').innerHTML=projects.map(p=>`<section class="card"><div class="project-head"><div style="flex:1;min-width:230px"><label>Nombre de la obra / pedido</label><input value="${esc(p.name)}" onchange="rename(${p.id},this.value)"></div><div class="actions no-print"><button class="secondary" onclick="addLine(${p.id})">+ Material</button><button class="danger" onclick="removeProject(${p.id})">Eliminar obra</button></div></div>${p.lines.length?p.lines.map(l=>material(l,p)).join(''):'<p class="muted">Todavía no hay materiales. Pulsa «+ Material» para añadir una línea.</p>'}<div style="margin-top:15px"><h2>Totales pendientes de esta obra</h2>${summary(totals(p.lines))}</div></section>`).join('');refreshTotals()}
+function summary(t){return `<div class="totals"><div class="stat"><span class="muted">Paneles pendientes</span><b>${t.panels}</b></div><div class="stat"><span class="muted">Postes pendientes</span><b>${t.posts}</b></div><div class="stat"><span class="muted">Abrazaderas pendientes</span><b>${t.clamps}</b></div></div>`}
+function refreshTotals(){let all=projects.flatMap(p=>p.lines);document.getElementById('grand').innerHTML=summary(totals(all))}
+function exportCSV(){let rows=[['Obra','Material','Longitud (m)','Ancho panel (m)','Paneles necesarios','Paneles suministrados','Paneles pendientes','Postes necesarios','Postes suministrados','Postes pendientes','Abrazaderas necesarias','Abrazaderas suministradas','Abrazaderas pendientes']];projects.forEach(p=>p.lines.forEach(l=>{let d=derived(l);rows.push([p.name,l.name,n(l.meters),n(l.panelWidth),d.panels,n(l.panelsSup),pending(d.panels,l.panelsSup),d.posts,n(l.postsSup),pending(d.posts,l.postsSup),d.clamps,n(l.clampsSup),pending(d.clamps,l.clampsSup)])}));let csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='resumen_materiales.csv';a.click();URL.revokeObjectURL(a.href)}
+render();
+</script><script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+</script></body></html>
